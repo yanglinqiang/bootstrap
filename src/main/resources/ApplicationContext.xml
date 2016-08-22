@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       default-autowire="byName" default-lazy-init="true"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
+                           http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.0.xsd
+                           http://code.alibabatech.com/schema/dubbo">
+
+    <!--&lt;!&ndash;定时重新加载log4j配置文件&ndash;&gt;-->
+    <bean id="log4jInitialization" class="org.springframework.beans.factory.config.MethodInvokingFactoryBean">
+        <property name="targetClass" value="org.springframework.util.Log4jConfigurer"/>
+        <property name="targetMethod" value="initLogging"/>
+        <property name="arguments">
+            <list>
+                <value>classpath:log4j2.xml</value>
+                <value>300000</value>
+            </list>
+        </property>
+    </bean>
+    <!-- 定义受环境影响易变的变量 -->
+    <bean class="com.ylq.framework.support.ConfigUtil">
+        <property name="systemPropertiesModeName" value="SYSTEM_PROPERTIES_MODE_OVERRIDE"/>
+        <property name="ignoreResourceNotFound" value="true"/>
+        <property name="locations">
+            <list>
+                <!-- 标准配置 -->
+                <value>classpath:*.properties</value>
+                <!--&lt;!&ndash; 本地开发环境配置 &ndash;&gt;-->
+                <!--<value>file:/Users/ylq/talkingdata/mapping.properties</value>-->
+                <!--&lt;!&ndash; 服务器生产环境配置 &ndash;&gt;-->
+                <!--<value>file:/home/hadoop/analytics-mapping-test/etc/mapping.properties</value>-->
+            </list>
+        </property>
+    </bean>
+    <!--可以在代码中获取SpringContext-->
+    <bean class="com.ylq.framework.support.SpringContextUtil" lazy-init="false"/>
+
+</beans>
