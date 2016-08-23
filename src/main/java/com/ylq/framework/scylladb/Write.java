@@ -18,8 +18,8 @@ public class Write implements ILoader {
     private ExecutorService executor;
     private Session[] sessions;
     private Cluster cluster;
-    private Integer perThreadNum;
-    private Long startMax = 0L;
+    private Integer perThreadNum; //每个线程插入多少数量
+    private Long startMax = 0L; //程序启动时数据库中的此表最大的id
     private static final Logger logger = LogManager.getLogger(Write.class);
 
     @Override
@@ -32,6 +32,7 @@ public class Write implements ILoader {
 
     @Override
     public void start() {
+        logger.info("Start time :"+System.currentTimeMillis());
         setStartMax();
         try {
             Integer num = ConfigUtil.getInt("scylladb.thread.num");
@@ -45,7 +46,7 @@ public class Write implements ILoader {
                 threadWork.join();
             }
         } catch (InterruptedException e) {
-            logger.error(e.getMessage(),e);
+            logger.error(e.getMessage(), e);
         } finally {
             for (Session session : sessions) {
                 if (!session.isClosed())
@@ -63,7 +64,8 @@ public class Write implements ILoader {
             readSession = cluster.connect();
             startMax = readSession.execute("select max(id) as maxIndex from  examples.table1").one().getLong("maxIndex");
         } finally {
-            readSession.close();
+            if (readSession != null)
+                readSession.close();
         }
     }
 

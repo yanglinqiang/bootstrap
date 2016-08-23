@@ -32,7 +32,6 @@
             <outputDirectory>.</outputDirectory>
             <includes>
                 <include>start.sh</include>
-                <include>start-single.sh</include>
                 <include>stop.sh</include>
             </includes>
         </fileSet>

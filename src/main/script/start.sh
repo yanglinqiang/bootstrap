@@ -17,4 +17,4 @@ if [ ! -x "logs" ];then
     mkdir logs
 fi
 
-nohup java $JAVA_OPTS  -cp conf:$(echo $(ls lib/*) | sed 's/ /:/g')   com.ylq.framework.Bootstrap > logs/stdout.log 2>&1 <&- &
+nohup java $JAVA_OPTS  -cp conf:$(echo $(ls lib/*) | sed 's/ /:/g')   com.ylq.framework.Bootstrap > logs/framework.log 2>&1 <&- &
