@@ -1,6 +1,5 @@
 package com.ylq.framework.scylladb;
 
-import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.Session;
 import com.ylq.framework.ILoader;
 import com.ylq.framework.support.ConfigUtil;
@@ -8,80 +7,78 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Created by 杨林强 on 16/8/22.
  */
-public class Write implements ILoader {
-    private ExecutorService executor;
-    private Session[] sessions;
-    private Cluster cluster;
-    private Integer perThreadNum; //每个线程插入多少数量
-    private Long startMax = 0L; //程序启动时数据库中的此表最大的id
+public class Write extends Scylla implements ILoader {
+    private AtomicLong indexAll;
     private static final Logger logger = LogManager.getLogger(Write.class);
 
     @Override
     public void init() {
-        cluster = Cluster.builder()
-                .addContactPoints(ConfigUtil.getString("scylladb.cluster.ips")).withPort(9042)
-                .build();
-        perThreadNum = ConfigUtil.getInt("scylladb.per.thread.num");
+        initScylla();
     }
 
     @Override
     public void start() {
-        logger.info("Start time :"+System.currentTimeMillis());
-        setStartMax();
+        Long startMax = getMaxId();
+        logger.info("The max of examples.table1.id:{}", startMax);
+        Long seeds = Long.valueOf(ConfigUtil.getString("scylladb.write.seeds"));
+        logger.info("The seeds:{}", seeds);
+        indexAll = new AtomicLong(startMax + seeds);
+        logger.info("The IndexAll of examples.table1.id:{}", indexAll);
+        totalNum += indexAll.get();
+        printQps(indexAll.get());//打印qps
+        startWork();
+        updateMaxId();
+        if (cluster != null) {
+            cluster.close();
+        }
+        logger.info("exit app!!");
+    }
+
+    private void updateMaxId() {
+        Session updateSession = null;
         try {
-            Integer num = ConfigUtil.getInt("scylladb.thread.num");
-            executor = Executors.newFixedThreadPool(num);
-            sessions = new Session[num];
-            for (int i = 0; i < num; i++) {
-                sessions[i] = cluster.connect();
-                Thread threadWork = createWriteThread(i);
-                threadWork.setDaemon(true);
-                executor.execute(threadWork);
-                threadWork.join();
-            }
-        } catch (InterruptedException e) {
-            logger.error(e.getMessage(), e);
+            updateSession = cluster.connect("examples");
+            updateSession.execute(" UPDATE table_index SET max_id = ?  WHERE id=?", totalNum, tableIndex);
+            logger.info("update table_index:{}", totalNum);
         } finally {
-            for (Session session : sessions) {
-                if (!session.isClosed())
-                    session.close();
-            }
-            if (cluster != null) {
-                cluster.close();
-            }
+            if (updateSession != null)
+                updateSession.close();
         }
     }
 
-    private void setStartMax() {
-        Session readSession = null;
-        try {
-            readSession = cluster.connect();
-            startMax = readSession.execute("select max(id) as maxIndex from  examples.table1").one().getLong("maxIndex");
-        } finally {
-            if (readSession != null)
-                readSession.close();
-        }
-    }
-
-    private Thread createWriteThread(final Integer threadIndex) {
+    @Override
+    protected Thread createThread(final int threadIndex) {
         return new Thread() {
+            Session session = sessions[threadIndex];
+            String sql = "INSERT INTO table" + tableIndex + " (id,text,col_time) VALUES (?,?,?)";
+
             @Override
             public void run() {
-                for (int i = 0; i < perThreadNum; i++) {
-                    Object[] param = new Object[]{startMax + threadIndex * perThreadNum + i,
+                long index = indexAll.getAndIncrement();
+                while (index <= totalNum) {
+                    Object[] param = new Object[]{index,
                             UUID.randomUUID().toString(),
                             System.currentTimeMillis()
                     };
-                    sessions[threadIndex].execute("INSERT INTO examples.table1 (id,text,col_time) VALUES (?,?,?)", param);
+                    try {
+                        session.execute(sql, param);
+                        if (index % 10000L == 0) {
+                            logger.info(String.join(",", param[0].toString(), param[1].toString(), param[2].toString()));
+                            printQps(index);
+                        }
+                    } catch (Exception ex) {
+                        logger.error(ex.getMessage(), ex);
+                        session.close();
+                        break;
+                    }
+                    index = indexAll.getAndIncrement();
                 }
             }
         };
     }
-
 }

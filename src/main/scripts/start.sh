@@ -4,14 +4,14 @@ export CURR_HOME=$(cd "$(dirname "$0")"; pwd)
 
 cd "$CURR_HOME"
 
-export JAVA_HOME=/home/hadoop/jdk1.8.0_77
+export JAVA_HOME=/home/hadoop/jdk1.8.0_45
 
 export PATH=$JAVA_HOME/bin:$PATH
 
 JVM_GC="-XX:+UseParallelGC -XX:+UseParallelOldGC  -Xloggc:logs/gc.log -verbose:gc -XX:+PrintGCDetails  -XX:+PrintGCDateStamps"
 
 
-JAVA_OPTS=" -Xms1g -Xmx1g  $JVM_GC"
+JAVA_OPTS=" -Xms4g -Xmx4g  $JVM_GC"
 
 if [ ! -x "logs" ];then
     mkdir logs
