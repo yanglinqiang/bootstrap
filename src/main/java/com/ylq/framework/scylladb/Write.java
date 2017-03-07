@@ -1,11 +1,13 @@
 package com.ylq.framework.scylladb;
 
+import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
 import com.ylq.framework.ILoader;
 import com.ylq.framework.support.ConfigUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -13,8 +15,11 @@ import java.util.concurrent.atomic.AtomicLong;
  * Created by 杨林强 on 16/8/22.
  */
 public class Write extends Scylla implements ILoader {
-    private AtomicLong indexAll;
+    private static AtomicLong indexAll;
     private static final Logger logger = LogManager.getLogger(Write.class);
+    private static final String tableName = ConfigUtil.getString("scylladb.table.name");
+    private static String seeds;
+    private static PreparedStatement prepared;
 
     @Override
     public void init() {
@@ -23,62 +28,43 @@ public class Write extends Scylla implements ILoader {
 
     @Override
     public void start() {
-        Long startMax = getMaxId();
-        logger.info("The max of examples.table1.id:{}", startMax);
-        Long seeds = Long.valueOf(ConfigUtil.getString("scylladb.write.seeds"));
-        logger.info("The seeds:{}", seeds);
-        indexAll = new AtomicLong(startMax + seeds);
-        logger.info("The IndexAll of examples.table1.id:{}", indexAll);
-        totalNum += indexAll.get();
-        printQps(indexAll.get());//打印qps
+        getSeeds();
+        indexAll = new AtomicLong(1);
+        prepared = session.prepare("INSERT INTO " + tableName + " (uuid,col_time) VALUES (?,?)");
         startWork();
-        updateMaxId();
-        if (cluster != null) {
-            cluster.close();
-        }
-        logger.info("exit app!!");
+        logger.info("app start!!");
+
     }
 
-    private void updateMaxId() {
-        Session updateSession = null;
-        try {
-            updateSession = cluster.connect("examples");
-            updateSession.execute(" UPDATE table_index SET max_id = ?  WHERE id=?", totalNum, tableIndex);
-            logger.info("update table_index:{}", totalNum);
-        } finally {
-            if (updateSession != null)
-                updateSession.close();
-        }
+    private void getSeeds() {
+        seeds = UUID.randomUUID().toString();
+        String sql = "INSERT INTO data_log(seeds,table_name,max_num,create_time) VALUES (?,?,?,?);";
+        Object[] param = new Object[]{seeds, tableName, 0l, System.currentTimeMillis()};
+        session.execute(sql, param);
+        logger.info("insert seeds:{}", seeds);
     }
 
     @Override
-    protected Thread createThread(final int threadIndex) {
+    protected Thread createThread() {
         return new Thread() {
-            Session session = sessions[threadIndex];
-            String sql = "INSERT INTO table" + tableIndex + " (id,text,col_time) VALUES (?,?,?)";
-
             @Override
             public void run() {
-                long index = indexAll.getAndIncrement();
-                while (index <= totalNum) {
-                    Object[] param = new Object[]{index,
-                            UUID.randomUUID().toString(),
-                            System.currentTimeMillis()
-                    };
-                    try {
-                        session.execute(sql, param);
-                        if (index % 10000L == 0) {
-                            logger.info(String.join(",", param[0].toString(), param[1].toString(), param[2].toString()));
-                            printQps(index);
-                        }
-                    } catch (Exception ex) {
-                        logger.error(ex.getMessage(), ex);
-                        session.close();
-                        break;
+                while (!Thread.currentThread().isInterrupted()) {
+                    Long index = indexAll.getAndIncrement();
+//                    session.executeAsync(prepared.bind(seeds + index, System.currentTimeMillis()));
+                    session.execute(prepared.bind(seeds + index, System.currentTimeMillis()));
+                    if (index % 50000L == 0) {
+                        logger.info(seeds + index);
                     }
-                    index = indexAll.getAndIncrement();
                 }
             }
         };
+    }
+
+    @Override
+    protected void close() {
+        String sql = "UPDATE data_log set max_num=? where seeds=?;";
+        Object[] param = new Object[]{indexAll.get(), seeds};
+        session.execute(sql, param);
     }
 }
