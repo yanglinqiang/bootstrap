@@ -1,5 +1,6 @@
 package com.ylq.framework.scylladb;
 
+import com.datastax.driver.core.ConsistencyLevel;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
@@ -40,10 +41,11 @@ public class Read extends Scylla implements ILoader {
         String sql = "select * from data_log;";
         List<Row> rowList = session.execute(sql).all();
         for (Row row : rowList) {
-            if (row.get("table_name", String.class).equalsIgnoreCase(tableName)) {
-                Long max = row.get("max_num", Long.class);
+
+            if (row.getString("table_name").equalsIgnoreCase(tableName)) {
+                Long max = row.getLong("max_num");
                 max = BigDecimal.valueOf(max).divideToIntegralValue(BigDecimal.valueOf(hitRate)).longValue();
-                seedsMap.put(row.get("seeds", String.class), max);
+                seedsMap.put(row.getString("seeds"), max);
             }
         }
 
@@ -56,6 +58,7 @@ public class Read extends Scylla implements ILoader {
         seedsString = seedsMap.keySet().toArray(new String[]{});
         seedsMax = seedsMap.values().toArray(new Long[]{});
         prepared = session.prepare("select * from data1 where uuid=?");
+        prepared.setConsistencyLevel(ConsistencyLevel.LOCAL_ONE);
         startWork();
         logger.info("app start!!");
     }
@@ -73,8 +76,8 @@ public class Read extends Scylla implements ILoader {
             public void run() {
                 while (!Thread.currentThread().isInterrupted()) {
                     Row row = session.execute(prepared.bind(getKey())).one();
-                    if (row != null && row.get("col_time", Long.class) % 5000 == 0) {
-                        logger.info(row.get("uuid", String.class));
+                    if (row != null && row.getLong("col_time") % 5000 == 0) {
+                        logger.info(row.getString("uuid"));
                     }
                 }
             }

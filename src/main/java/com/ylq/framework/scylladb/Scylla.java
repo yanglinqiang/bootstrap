@@ -1,6 +1,7 @@
 package com.ylq.framework.scylladb;
 
 import com.datastax.driver.core.*;
+import com.datastax.driver.core.policies.DCAwareRoundRobinPolicy;
 import com.datastax.driver.core.policies.RoundRobinPolicy;
 import com.ylq.framework.support.ConfigUtil;
 import org.apache.logging.log4j.LogManager;
@@ -17,6 +18,8 @@ public abstract class Scylla {
     protected Cluster cluster;
     protected Integer threadNum;
 
+    protected volatile boolean sleeped = false;
+
 
     private static final Logger logger = LogManager.getLogger(Scylla.class);
 
@@ -27,21 +30,32 @@ public abstract class Scylla {
             address[i] = new InetSocketAddress(nodes[i].split(":")[0], Integer.valueOf(nodes[i].split(":")[1]));
         }
         PoolingOptions poolingOptions = new PoolingOptions();
+        threadNum = ConfigUtil.getInt("scylladb.thread.num");
         Integer coreNum = ConfigUtil.getInt("scylladb.pooling.core.num");
-        Integer maxNum = ConfigUtil.getInt("scylladb.pooling.max.num");
-        Integer perRequest = ConfigUtil.getInt("scylladb.connect.request.num");
-        poolingOptions.setConnectionsPerHost(HostDistance.LOCAL, coreNum, maxNum)
-                .setConnectionsPerHost(HostDistance.REMOTE, coreNum, maxNum)
+        Integer perRequest = (threadNum / coreNum) + coreNum;
+
+
+        poolingOptions.setConnectionsPerHost(HostDistance.LOCAL, coreNum, coreNum)
                 .setMaxRequestsPerConnection(HostDistance.LOCAL, perRequest)
-                .setMaxRequestsPerConnection(HostDistance.REMOTE, 2000);
+                .setNewConnectionThreshold(HostDistance.LOCAL, 100);
+
+
+        DCAwareRoundRobinPolicy.Builder policyBuilder = DCAwareRoundRobinPolicy.builder();
+        policyBuilder.withLocalDc("datacenter1");
+
         cluster = Cluster.builder()
-                .addContactPointsWithPorts(address)
+                .addContactPoint(nodes[1].split(":")[0])
+                .withPort(Integer.valueOf(nodes[1].split(":")[1]))
                 .withPoolingOptions(poolingOptions)
                 .withProtocolVersion(ProtocolVersion.V3)
-                .withNettyOptions(new NettyOptions())
-                .withLoadBalancingPolicy(new RoundRobinPolicy())
+                .withLoadBalancingPolicy(policyBuilder.build())
+                .withoutMetrics()
+                .withCompression(ProtocolOptions.Compression.NONE)
                 .build();
-        session = cluster.connect("examples");
+        session = cluster.connect();
+        SimpleStatement stmt = new SimpleStatement("USE \"keyspace1\"; ");
+        stmt.setConsistencyLevel(ConsistencyLevel.LOCAL_ONE);
+        session.execute(stmt);
         threadNum = ConfigUtil.getInt("scylladb.thread.num");
         logger.info("The num of Thread:{}", threadNum);
         threads = new Thread[threadNum];
@@ -54,6 +68,17 @@ public abstract class Scylla {
             threads[i] = createThread();
             threads[i].setDaemon(true);
             threads[i].start();
+        }
+        while (true) {
+            try {
+                if (sleeped) {
+                    sleep();
+                } else {
+                    Thread.sleep(500);
+                }
+            } catch (InterruptedException e) {
+                logger.info(e.getMessage(), e);
+            }
         }
     }
 
@@ -75,6 +100,30 @@ public abstract class Scylla {
                 logger.info("exit app!!");
             }
         });
+    }
+
+    private void sleep() {
+//        for (Thread thread : threads) {
+//            thread.interrupt();
+//        }
+        try {
+            logger.info("sleep 15s !");
+            Thread.sleep(25000);
+        } catch (InterruptedException e) {
+            logger.info(e.getMessage(), e);
+        }
+        truncateTable();
+        sleeped = false;
+        for (int i = 0; i < threadNum; i++) {
+            threads[i] = createThread();
+            threads[i].setDaemon(true);
+            threads[i].start();
+        }
+    }
+
+    //关闭时调用
+    protected void truncateTable() {
+
     }
 
     //关闭时调用

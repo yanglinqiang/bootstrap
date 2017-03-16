@@ -48,6 +48,7 @@
             <artifactId>spring-context</artifactId>
             <version>${springframework.version}</version>
         </dependency>
+
         <dependency>
             <groupId>com.datastax.cassandra</groupId>
             <artifactId>cassandra-driver-core</artifactId>
