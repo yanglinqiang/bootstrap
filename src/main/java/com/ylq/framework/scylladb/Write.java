@@ -73,9 +73,9 @@ public class Write extends Scylla implements ILoader {
 
     @Override
     protected void close() {
-//        String sql = "UPDATE data_log set max_num=? where seeds=?;";
-//        Object[] param = new Object[]{1000000, seeds};
-//        session.execute(sql, param);
+        String sql = "UPDATE data_log set max_num=? where seeds=?;";
+        Object[] param = new Object[]{1000000, seeds};
+        session.execute(sql, param);
     }
 
     private static byte[] getByte(Long x) {

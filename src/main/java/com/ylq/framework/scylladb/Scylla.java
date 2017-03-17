@@ -32,19 +32,16 @@ public abstract class Scylla {
         threadNum = ConfigUtil.getInt("scylladb.thread.num");
 //        Integer coreNum = ConfigUtil.getInt("scylladb.pooling.core.num");
 
-        PoolingOptions poolingOptions = new PoolingOptions();
+        PoolingOptions poolingOpts = new PoolingOptions();
+        poolingOpts.setCoreConnectionsPerHost(HostDistance.LOCAL, 8);
 
-        poolingOptions.setCoreConnectionsPerHost(HostDistance.LOCAL, 8);
-
-
-
-        cluster = Cluster.builder()
+        Cluster.Builder clusterBuilder = Cluster.builder()
                 .addContactPoint("172.23.12.25")
                 .withPort(9042)
-                .withPoolingOptions(poolingOptions)
-                .withoutMetrics()
-                .withCompression(ProtocolOptions.Compression.NONE)
-                .build();
+                .withPoolingOptions(poolingOpts)
+                .withoutMetrics(); // The driver uses
+        clusterBuilder.withCompression(ProtocolOptions.Compression.NONE);
+        cluster = clusterBuilder.build();
         Metadata metadata = cluster.getMetadata();
         logger.info("Connected to cluster: %s%n",
                 metadata.getClusterName());
