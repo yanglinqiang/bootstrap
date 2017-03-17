@@ -52,9 +52,9 @@ public class Write extends Scylla implements ILoader {
 
             @Override
             public void run() {
-                while (!Thread.currentThread().isInterrupted() && index < 1000000) {
+                while (!Thread.currentThread().isInterrupted() && index < 1000000000l) {
                     prepared.setConsistencyLevel(ConsistencyLevel.LOCAL_ONE);
-                    session.execute(prepared.bind(ByteBuffer.wrap(getByte(index)), ByteBuffer.wrap((seeds + index).getBytes())));
+                    session.execute(prepared.bind(index, seeds + index));
                     if (index % 50000 == 0) {
                         logger.info(seeds + index);
                     }
@@ -66,28 +66,9 @@ public class Write extends Scylla implements ILoader {
     }
 
     @Override
-    protected void truncateTable() {
-        session.execute("TRUNCATE " + tableName);
-        logger.info("TRUNCATE table {}", tableName);
-    }
-
-    @Override
     protected void close() {
         String sql = "UPDATE data_log set max_num=? where seeds=?;";
-        Object[] param = new Object[]{1000000, seeds};
+        Object[] param = new Object[]{1000000000l, seeds};
         session.execute(sql, param);
-    }
-
-    private static byte[] getByte(Long x) {
-        byte[] bytes = new byte[8];
-        bytes[7] = (byte) (x >> 56);
-        bytes[6] = (byte) (x >> 48);
-        bytes[5] = (byte) (x >> 40);
-        bytes[4] = (byte) (x >> 32);
-        bytes[3] = (byte) (x >> 24);
-        bytes[2] = (byte) (x >> 16);
-        bytes[1] = (byte) (x >> 8);
-        bytes[0] = (byte) (x >> 0);
-        return bytes;
     }
 }

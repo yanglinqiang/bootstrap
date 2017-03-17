@@ -57,8 +57,7 @@ public class Read extends Scylla implements ILoader {
 
         seedsString = seedsMap.keySet().toArray(new String[]{});
         seedsMax = seedsMap.values().toArray(new Long[]{});
-        prepared = session.prepare("select * from data1 where uuid=?");
-        prepared.setConsistencyLevel(ConsistencyLevel.LOCAL_ONE);
+        prepared = session.prepare("select col_time,uuid from data1 where uuid=?");
         startWork();
         logger.info("app start!!");
     }
@@ -75,6 +74,7 @@ public class Read extends Scylla implements ILoader {
             @Override
             public void run() {
                 while (!Thread.currentThread().isInterrupted()) {
+                    prepared.setConsistencyLevel(ConsistencyLevel.LOCAL_ONE);
                     Row row = session.execute(prepared.bind(getKey())).one();
                     if (row != null && row.getLong("col_time") % 5000 == 0) {
                         logger.info(row.getString("uuid"));

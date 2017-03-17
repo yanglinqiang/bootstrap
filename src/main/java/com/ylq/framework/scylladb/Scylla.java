@@ -24,34 +24,28 @@ public abstract class Scylla {
     private static final Logger logger = LogManager.getLogger(Scylla.class);
 
     protected void initScylla() {
-//        String nodes[] = ConfigUtil.getString("scylladb.cluster.ips").split(",");
-//        InetSocketAddress address[] = new InetSocketAddress[nodes.length];
-//        for (int i = 0; i < nodes.length; i++) {
-//            address[i] = new InetSocketAddress(nodes[i].split(":")[0], Integer.valueOf(nodes[i].split(":")[1]));
-//        }
+        String nodes[] = ConfigUtil.getString("scylladb.cluster.ips").split(",");
+
         threadNum = ConfigUtil.getInt("scylladb.thread.num");
-//        Integer coreNum = ConfigUtil.getInt("scylladb.pooling.core.num");
 
         PoolingOptions poolingOpts = new PoolingOptions();
         poolingOpts.setCoreConnectionsPerHost(HostDistance.LOCAL, 8);
 
         Cluster.Builder clusterBuilder = Cluster.builder()
-                .addContactPoint("172.23.12.25")
+                .addContactPoint(nodes[0].split(":")[0])
                 .withPort(9042)
                 .withPoolingOptions(poolingOpts)
                 .withoutMetrics(); // The driver uses
         clusterBuilder.withCompression(ProtocolOptions.Compression.NONE);
         cluster = clusterBuilder.build();
         Metadata metadata = cluster.getMetadata();
-        logger.info("Connected to cluster: %s%n",
-                metadata.getClusterName());
+        logger.info("Connected to cluster: {}", metadata.getClusterName());
         for (Host host : metadata.getAllHosts())
         {
-            logger.info("Datatacenter: %s; Host: %s; Rack: %s%n",
-                    host.getDatacenter(), host.getAddress(), host.getRack());
+            logger.info("Datatacenter: {}; Host: {}; Rack: {}", host.getDatacenter(), host.getAddress(), host.getRack());
         }
         session = cluster.connect();
-        SimpleStatement stmt = new SimpleStatement("USE \"keyspace1\"; ");
+        SimpleStatement stmt = new SimpleStatement("USE \"examples\"; ");
         stmt.setConsistencyLevel(ConsistencyLevel.LOCAL_ONE);
         session.execute(stmt);
         threadNum = ConfigUtil.getInt("scylladb.thread.num");
@@ -61,23 +55,12 @@ public abstract class Scylla {
 
     protected void startWork() {
         startShutdownHook();
-
         for (int i = 0; i < threadNum; i++) {
             threads[i] = createThread();
             threads[i].setDaemon(true);
             threads[i].start();
         }
-        while (true) {
-            try {
-                if (sleeped) {
-                    sleep();
-                } else {
-                    Thread.sleep(500);
-                }
-            } catch (InterruptedException e) {
-                logger.info(e.getMessage(), e);
-            }
-        }
+
     }
 
     private void startShutdownHook() {
@@ -98,30 +81,6 @@ public abstract class Scylla {
                 logger.info("exit app!!");
             }
         });
-    }
-
-    private void sleep() {
-//        for (Thread thread : threads) {
-//            thread.interrupt();
-//        }
-        try {
-            logger.info("sleep 15s !");
-            Thread.sleep(25000);
-        } catch (InterruptedException e) {
-            logger.info(e.getMessage(), e);
-        }
-        truncateTable();
-        sleeped = false;
-        for (int i = 0; i < threadNum; i++) {
-            threads[i] = createThread();
-            threads[i].setDaemon(true);
-            threads[i].start();
-        }
-    }
-
-    //关闭时调用
-    protected void truncateTable() {
-
     }
 
     //关闭时调用
