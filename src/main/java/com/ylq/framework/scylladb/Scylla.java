@@ -24,34 +24,35 @@ public abstract class Scylla {
     private static final Logger logger = LogManager.getLogger(Scylla.class);
 
     protected void initScylla() {
-        String nodes[] = ConfigUtil.getString("scylladb.cluster.ips").split(",");
-        InetSocketAddress address[] = new InetSocketAddress[nodes.length];
-        for (int i = 0; i < nodes.length; i++) {
-            address[i] = new InetSocketAddress(nodes[i].split(":")[0], Integer.valueOf(nodes[i].split(":")[1]));
-        }
-        PoolingOptions poolingOptions = new PoolingOptions();
+//        String nodes[] = ConfigUtil.getString("scylladb.cluster.ips").split(",");
+//        InetSocketAddress address[] = new InetSocketAddress[nodes.length];
+//        for (int i = 0; i < nodes.length; i++) {
+//            address[i] = new InetSocketAddress(nodes[i].split(":")[0], Integer.valueOf(nodes[i].split(":")[1]));
+//        }
         threadNum = ConfigUtil.getInt("scylladb.thread.num");
-        Integer coreNum = ConfigUtil.getInt("scylladb.pooling.core.num");
-        Integer perRequest = (threadNum / coreNum) + coreNum;
+//        Integer coreNum = ConfigUtil.getInt("scylladb.pooling.core.num");
+
+        PoolingOptions poolingOptions = new PoolingOptions();
+
+        poolingOptions.setCoreConnectionsPerHost(HostDistance.LOCAL, 8);
 
 
-        poolingOptions.setConnectionsPerHost(HostDistance.LOCAL, coreNum, coreNum)
-                .setMaxRequestsPerConnection(HostDistance.LOCAL, perRequest)
-                .setNewConnectionThreshold(HostDistance.LOCAL, 100);
-
-
-        DCAwareRoundRobinPolicy.Builder policyBuilder = DCAwareRoundRobinPolicy.builder();
-        policyBuilder.withLocalDc("datacenter1");
 
         cluster = Cluster.builder()
-                .addContactPoint(nodes[1].split(":")[0])
-                .withPort(Integer.valueOf(nodes[1].split(":")[1]))
+                .addContactPoint("172.23.12.25")
+                .withPort(9042)
                 .withPoolingOptions(poolingOptions)
-                .withProtocolVersion(ProtocolVersion.V3)
-                .withLoadBalancingPolicy(policyBuilder.build())
                 .withoutMetrics()
                 .withCompression(ProtocolOptions.Compression.NONE)
                 .build();
+        Metadata metadata = cluster.getMetadata();
+        logger.info("Connected to cluster: %s%n",
+                metadata.getClusterName());
+        for (Host host : metadata.getAllHosts())
+        {
+            logger.info("Datatacenter: %s; Host: %s; Rack: %s%n",
+                    host.getDatacenter(), host.getAddress(), host.getRack());
+        }
         session = cluster.connect();
         SimpleStatement stmt = new SimpleStatement("USE \"keyspace1\"; ");
         stmt.setConsistencyLevel(ConsistencyLevel.LOCAL_ONE);
