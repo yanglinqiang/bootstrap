@@ -18,8 +18,6 @@ public abstract class Scylla {
     protected Cluster cluster;
     protected Integer threadNum;
 
-    protected volatile boolean sleeped = false;
-
 
     private static final Logger logger = LogManager.getLogger(Scylla.class);
 
@@ -60,7 +58,6 @@ public abstract class Scylla {
             threads[i].setDaemon(true);
             threads[i].start();
         }
-
     }
 
     private void startShutdownHook() {

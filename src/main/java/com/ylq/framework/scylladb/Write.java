@@ -23,6 +23,9 @@ public class Write extends Scylla implements ILoader {
     private static String seeds;
     private static PreparedStatement prepared;
 
+    private static AtomicLong atomicLong = new AtomicLong(0);
+    private static Long max = Long.parseLong(ConfigUtil.getString("scylladb.Write.Max"));
+
     @Override
     public void init() {
         initScylla();
@@ -48,19 +51,21 @@ public class Write extends Scylla implements ILoader {
     @Override
     protected Thread createThread() {
         return new Thread() {
-            long index = 0;
-
             @Override
             public void run() {
-                while (!Thread.currentThread().isInterrupted() && index < 1000000000l) {
+                long index = atomicLong.getAndIncrement();
+                while (!Thread.currentThread().isInterrupted() && index < max) {
                     prepared.setConsistencyLevel(ConsistencyLevel.LOCAL_ONE);
-                    session.execute(prepared.bind(index, seeds + index));
+                    try {
+                        session.execute(prepared.bind(index, seeds + index));
+                    } catch (Exception e) {
+                        logger.error(e.getMessage(), e);
+                    }
                     if (index % 50000 == 0) {
                         logger.info(seeds + index);
                     }
-                    index++;
+                    index = atomicLong.getAndIncrement();
                 }
-                sleeped = true;
             }
         };
     }
@@ -68,7 +73,7 @@ public class Write extends Scylla implements ILoader {
     @Override
     protected void close() {
         String sql = "UPDATE data_log set max_num=? where seeds=?;";
-        Object[] param = new Object[]{1000000000l, seeds};
+        Object[] param = new Object[]{atomicLong.get(), seeds};
         session.execute(sql, param);
     }
 }

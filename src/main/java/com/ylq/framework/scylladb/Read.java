@@ -37,7 +37,6 @@ public class Read extends Scylla implements ILoader {
     @Override
     public void start() {
         Map<String, Long> seedsMap = new HashMap<>();
-//        try (Session session = cluster.connect("examples")) {
         String sql = "select * from data_log;";
         List<Row> rowList = session.execute(sql).all();
         for (Row row : rowList) {
@@ -49,7 +48,6 @@ public class Read extends Scylla implements ILoader {
             }
         }
 
-//        }
         if (seedsMap.size() == 0) {
             logger.info("获取种子信息失败！");
             return;
