@@ -1,9 +1,7 @@
 package com.ylq.framework.kafka;
 
-import com.datastax.driver.core.ConsistencyLevel;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ylq.framework.ILoader;
-import com.ylq.framework.scylladb.Write;
 import com.ylq.framework.support.ConfigUtil;
 import kafka.consumer.ConsumerConfig;
 import kafka.consumer.ConsumerIterator;
@@ -36,6 +34,7 @@ public class ReaderTest implements ILoader {
         props.put("zookeeper.session.timeout.ms", ConfigUtil.getString("kafka.zookeeper.session.timeout.ms"));
         props.put("zookeeper.sync.time.ms", ConfigUtil.getString("kafka.zookeeper.sync.time.ms"));
         props.put("auto.commit.interval.ms", ConfigUtil.getString("kafka.auto.commit.interval.ms"));
+        props.put("auto.offset.reset", ConfigUtil.getString("kafka.auto.offset.reset"));
         return new ConsumerConfig(props);
     }
 
