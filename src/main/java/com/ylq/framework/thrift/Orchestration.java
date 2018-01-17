@@ -33,8 +33,13 @@ public class Orchestration extends AbstractAppWait implements ILoader {
     @Override
     public void start() {
         Long start = System.currentTimeMillis();
+        String script =
+                "df=pd.read_json('%s')\n" +
+                        "df['%s']=pd.Series([str(uuid.uuid3()) for x in df.index])\n" +
+                        "df.to_json('%s')\n";
+        script=String.format(script,"/tmp/dss/cars.json","uuid","/tmp/dss/cars1.json");
         try {
-            System.out.println(fastExecuteClient.start("Hello Thrift"));
+            System.out.println(fastExecuteClient.start(script));
         } catch (TException e) {
             e.printStackTrace();
         }
